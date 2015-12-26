@@ -9,5 +9,7 @@ rel/example_project
 .concrete/DEV_MODE
 .rebar
 
+*/target
+*notes
 .idea
 *.iml
