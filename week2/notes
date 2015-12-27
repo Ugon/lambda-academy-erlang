@@ -1,8 +1,0 @@
-spawn i link osobno -> proces moze pasc pomiedzi. spawn_link -> nie moze pasc
-sciazka propagacji dla exit sygnalow.
-
-?MODULE - makro, bierzacy modul
-
-ETS - erlang term storage - na egzamin
-
-SCHEDULER
