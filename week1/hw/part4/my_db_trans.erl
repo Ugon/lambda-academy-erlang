@@ -16,15 +16,15 @@
 
 start() -> spawn(?MODULE, init, []), ok.
 
-stop() -> whereis(?SERVER) ! stop, ok.
+stop() -> ?SERVER ! stop, ok.
 
-write(Key, Element) -> whereis(?SERVER) ! {write, self(), {Key, Element}}, return_received().
+write(Key, Element) -> ?SERVER ! {write, self(), {Key, Element}}, return_received().
 
-delete(Key) -> whereis(?SERVER) ! {delete, self(), Key}, return_received().
+delete(Key) -> ?SERVER ! {delete, self(), Key}, return_received().
 
-read(Key) -> whereis(?SERVER) ! {read, self(), Key}, return_received().
+read(Key) -> ?SERVER ! {read, self(), Key}, return_received().
 
-match(Element) -> whereis(?SERVER) ! {match, self(), Element}, return_received().
+match(Element) -> ?SERVER ! {match, self(), Element}, return_received().
 
 %%server will unlock transaction when client dies
 %%its up to client to trap signals caused by server failure during transaction (between lock and unlock calls)
@@ -46,22 +46,25 @@ init() ->
   process_flag(trap_exit, true),
   loop(#state{db = db:new(), locking_pid = none}).
 
-loop(State) ->
+loop(#state{db = Db, locking_pid = LockingPid} = State) ->
   receive
-    {'EXIT', Pid, _} when State#state.locking_pid == Pid -> loop(State#state{locking_pid = none});
+    {'EXIT', LockingPid, _} -> loop(State#state{locking_pid = none});
 
-    {lock, Pid} when State#state.locking_pid == none -> Pid ! ok, loop(State#state{locking_pid = Pid});
-    {unlock, Pid} when State#state.locking_pid == Pid -> Pid ! ok, loop(State#state{locking_pid = none});
+    {lock, LockingPid} -> LockingPid ! {error, already_locked}, loop(State);
+    {lock, Pid} when LockingPid == none -> Pid ! ok, loop(State#state{locking_pid = Pid});
+    {unlock, LockingPid} -> LockingPid ! ok, loop(State#state{locking_pid = none});
 
-    Tuple when lock /= element(1, Tuple), 'EXIT' /= element(1, Tuple), is_pid(element(2, Tuple)), State#state.locking_pid /= element(2, Tuple) ->
-      element(2, Tuple) ! {error, notrans}, loop(State);
+    {unlock, Pid} when Pid /= LockingPid ->
+      Pid ! {error, notrans}, loop(State);
+    {Command, Pid, _} when Command /= lock, Command /= 'EXIT', Pid /= LockingPid ->
+      Pid ! {error, notrans}, loop(State);
 
-    {write, Pid, {Key, Element}} -> Pid ! ok, loop(State#state{db = db:write(Key, Element, State#state.db)});
-    {delete, Pid, Key} -> Pid ! ok, loop(State#state{db = db:delete(Key, State#state.db)});
-    {read, Pid, Key} -> Pid ! db:read(Key, State#state.db), loop(State);
-    {match, Pid, Element} -> Pid ! db:match(Element, State#state.db), loop(State);
+    {write, Pid, {Key, Element}} -> Pid ! ok, loop(State#state{db = db:write(Key, Element, Db)});
+    {delete, Pid, Key} -> Pid ! ok, loop(State#state{db = db:delete(Key, Db)});
+    {read, Pid, Key} -> Pid ! db:read(Key, Db), loop(State);
+    {match, Pid, Element} -> Pid ! db:match(Element, Db), loop(State);
 
-    stop -> exit(stopped)
+    stop -> ok
   end.
 
 

@@ -14,20 +14,20 @@
 
 start() -> spawn(?MODULE, init, []), ok.
 
-stop() -> whereis(?SERVER) ! stop, ok.
+stop() -> ?SERVER ! stop, ok.
 
-write(Key, Element) -> whereis(?SERVER) ! {write, {Key, Element}}, ok.
+write(Key, Element) -> ?SERVER ! {write, {Key, Element}}, ok.
 
-delete(Key) -> whereis(?SERVER) ! {delete, Key}, ok.
+delete(Key) -> ?SERVER ! {delete, Key}, ok.
 
 read(Key) ->
-  whereis(?SERVER) ! {read, {Key, self()}},
+  ?SERVER ! {read, {Key, self()}},
   receive
     Res -> Res
   end.
 
 match(Element) ->
-  whereis(?SERVER) ! {match, {Element, self()}},
+  ?SERVER ! {match, {Element, self()}},
   receive
     Res -> Res
   end.

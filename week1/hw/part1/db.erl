@@ -23,5 +23,5 @@ read(Key, DbRef) ->
   end.
 
 match(Element, DbRef) ->
-  Filtered = list_utils:filter(DbRef, fun(X) -> element(2, X) == Element end),
-  list_utils:map(Filtered, fun(X) -> element(1, X) end).
+  Filtered = list_utils:filter(DbRef, fun({_, X}) -> X == Element end),
+  list_utils:map(Filtered, fun({X, _}) -> X end).
