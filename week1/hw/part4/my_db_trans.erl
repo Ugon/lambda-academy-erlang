@@ -50,19 +50,19 @@ loop(#state{db = Db, locking_pid = LockingPid} = State) ->
   receive
     {'EXIT', LockingPid, _} -> loop(State#state{locking_pid = none});
 
-    {lock, LockingPid} -> LockingPid ! {error, already_locked}, loop(State);
     {lock, Pid} when LockingPid == none -> Pid ! ok, loop(State#state{locking_pid = Pid});
+    {lock, OtherPid} when OtherPid /= LockingPid -> OtherPid ! {error, server_locked}, loop(State);
+    {lock, LockingPid} -> LockingPid ! {error, already_locked}, loop(State);
+
     {unlock, LockingPid} -> LockingPid ! ok, loop(State#state{locking_pid = none});
+    {unlock, Pid} when Pid /= LockingPid -> Pid ! {error, notrans}, loop(State);
 
-    {unlock, Pid} when Pid /= LockingPid ->
-      Pid ! {error, notrans}, loop(State);
-    {Command, Pid, _} when Command /= lock, Command /= 'EXIT', Pid /= LockingPid ->
-      Pid ! {error, notrans}, loop(State);
+    {write, LockingPid, {Key, Element}} -> LockingPid ! ok, loop(State#state{db = db:write(Key, Element, Db)});
+    {delete, LockingPid, Key} -> LockingPid ! ok, loop(State#state{db = db:delete(Key, Db)});
+    {read, LockingPid, Key} -> LockingPid ! db:read(Key, Db), loop(State);
+    {match, LockingPid, Element} -> LockingPid ! db:match(Element, Db), loop(State);
 
-    {write, Pid, {Key, Element}} -> Pid ! ok, loop(State#state{db = db:write(Key, Element, Db)});
-    {delete, Pid, Key} -> Pid ! ok, loop(State#state{db = db:delete(Key, Db)});
-    {read, Pid, Key} -> Pid ! db:read(Key, Db), loop(State);
-    {match, Pid, Element} -> Pid ! db:match(Element, Db), loop(State);
+    {_Command, NonLockingPid, _} -> NonLockingPid ! {error, notrans}, loop(State);
 
     stop -> ok
   end.
